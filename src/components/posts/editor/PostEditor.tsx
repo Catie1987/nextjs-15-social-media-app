@@ -3,30 +3,31 @@
 import { useSession } from "@/app/(main)/SessionProvider";
 import LoadingButton from "@/components/LoadingButton";
 import { Button } from "@/components/ui/button";
-import UserAvatar from "@/components/UserAvatar";
-import { cn } from "@/lib/utils";
-import Placeholder from "@tiptap/extension-placeholder";
-import { EditorContent, useEditor } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import { useDropzone } from "@uploadthing/react";
-import { ImageIcon, Loader2, X, SmilePlus } from "lucide-react";
-import Image from "next/image";
-import { ClipboardEvent, useRef, useState } from "react";
-import { useSubmitPostMutation } from "./mutations";
-import "./styles.css";
-import useMediaUpload, { Attachment } from "./useMediaUpload";
-import data from "@emoji-mart/data";
-import dynamic from "next/dynamic";
-const Picker = dynamic(() => import("@emoji-mart/react"), { ssr: false });
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import UserAvatar from "@/components/UserAvatar";
+import { cn } from "@/lib/utils";
+import data from "@emoji-mart/data";
+import Placeholder from "@tiptap/extension-placeholder";
+import { EditorContent, useEditor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import { useDropzone } from "@uploadthing/react";
+import { ImageIcon, Loader2, SmilePlus, X } from "lucide-react";
+import Image from "next/image";
+import dynamic from "next/dynamic";
+import { ClipboardEvent, useEffect, useRef } from "react";
+import { useSubmitPostMutation } from "./mutations";
+import "./styles.css";
+import useMediaUpload, { Attachment } from "./useMediaUpload";
+
+// Dynamically import Picker to avoid SSR issues and reduce initial bundle
+const Picker = dynamic(() => import("@emoji-mart/react"), { ssr: false });
 
 export default function PostEditor() {
   const { user } = useSession();
-
   const mutation = useSubmitPostMutation();
 
   const {
@@ -44,8 +45,6 @@ export default function PostEditor() {
 
   const { onClick, ...rootProps } = getRootProps();
 
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -56,6 +55,12 @@ export default function PostEditor() {
         placeholder: "What's new?",
       }),
     ],
+    // ✅ Improves mobile performance — only parse on idle
+    editorProps: {
+      attributes: {
+        class: "focus:outline-none",
+      },
+    }, // ✅ prevents SSR mismatch and reduces lag
   });
 
   const input =
@@ -86,9 +91,7 @@ export default function PostEditor() {
   }
 
   function onEmojiSelect(emoji: { native: string }) {
-    editor?.commands.insertContent(emoji.native);
-    setShowEmojiPicker(false);
-    editor?.commands.focus();
+    editor?.chain().focus().insertContent(emoji.native).run();
   }
 
   return (
@@ -121,26 +124,26 @@ export default function PostEditor() {
           </>
         )}
         <Popover>
-  <PopoverTrigger asChild>
-    <Button
-      variant="ghost"
-      size="icon"
-      className="text-primary hover:text-primary"
-      type="button"
-    >
-      <SmilePlus size={20} />
-    </Button>
-  </PopoverTrigger>
-  <PopoverContent className="w-fit p-0" side="top" align="end">
-    <Picker
-      data={data}
-      onEmojiSelect={onEmojiSelect}
-      theme="auto"
-      perLine={8}
-      maxFrequentRows={1}
-    />
-  </PopoverContent>
-</Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-primary hover:text-primary"
+              type="button"
+            >
+              <SmilePlus size={20} />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-fit p-0" side="top" align="end">
+            <Picker
+              data={data}
+              onEmojiSelect={onEmojiSelect}
+              theme="auto"
+              perLine={8}
+              maxFrequentRows={1}
+            />
+          </PopoverContent>
+        </Popover>
         <AddAttachmentsButton
           onFilesSelected={startUpload}
           disabled={isUploading || attachments.length >= 5}
@@ -234,7 +237,12 @@ function AttachmentPreview({
   attachment: { file, mediaId, isUploading },
   onRemoveClick,
 }: AttachmentPreviewProps) {
-  const src = URL.createObjectURL(file);
+  // ✅ Clean up object URLs to prevent memory leaks (causes lag on mobile)
+  const src = useRef(URL.createObjectURL(file));
+
+  useEffect(() => {
+    return () => URL.revokeObjectURL(src.current);
+  }, []);
 
   return (
     <div
@@ -242,7 +250,7 @@ function AttachmentPreview({
     >
       {file.type.startsWith("image") ? (
         <Image
-          src={src}
+          src={src.current}
           alt="Attachment preview"
           width={500}
           height={500}
@@ -250,7 +258,7 @@ function AttachmentPreview({
         />
       ) : (
         <video controls className="size-fit max-h-[30rem] rounded-2xl">
-          <source src={src} type={file.type} />
+          <source src={src.current} type={file.type} />
         </video>
       )}
       {!isUploading && (

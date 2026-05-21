@@ -7,7 +7,7 @@ import { Media } from "@prisma/client";
 import { MessageSquare } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Comments from "../comments/Comments";
 import Linkify from "../Linkify";
 import UserAvatar from "../UserAvatar";
@@ -15,6 +15,7 @@ import UserTooltip from "../UserTooltip";
 import BookmarkButton from "./BookmarkButton";
 import LikeButton from "./LikeButton";
 import PostMoreButton from "./PostMoreButton";
+import useEmblaCarousel from "embla-carousel-react";
 
 interface PostProps {
   post: PostData;
@@ -99,46 +100,94 @@ interface MediaPreviewsProps {
 }
 
 function MediaPreviews({ attachments }: MediaPreviewsProps) {
-  return (
-    <div
-      className={cn(
-        "flex flex-col gap-3",
-        attachments.length > 1 && "sm:grid sm:grid-cols-2",
-      )}
-    >
-      {attachments.map((m) => (
-        <MediaPreview key={m.id} media={m} />
-      ))}
-    </div>
-  );
+  if (attachments.length === 1) {
+    return <MediaPreview media={attachments[0]} />;
+  }
+ 
+  return <MediaCarousel attachments={attachments} />;
+}
+ 
+interface MediaCarouselProps {
+  attachments: Media[];
 }
 
 interface MediaPreviewProps {
   media: Media;
 }
 
+function MediaCarousel({ attachments }: MediaCarouselProps) {
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false, dragFree: true });
+  const [selectedIndex, setSelectedIndex] = useState(0);
+ 
+  const onSelect = useCallback(() => {
+    if (!emblaApi) return;
+    setSelectedIndex(emblaApi.selectedScrollSnap());
+  }, [emblaApi]);
+ 
+  useEffect(() => {
+    if (!emblaApi) return;
+    emblaApi.on("select", onSelect);
+    onSelect();
+  }, [emblaApi, onSelect]);
+ 
+  return (
+    <div className="relative">
+      {/* Carousel viewport */}
+      <div className="overflow-hidden rounded-2xl" ref={emblaRef}>
+        <div className="flex touch-pan-y gap-2">
+          {attachments.map((media) => (
+            <div key={media.id} className="min-w-0 flex-[0_0_80%]">
+              <MediaPreview media={media} />
+            </div>
+          ))}
+        </div>
+      </div>
+ 
+      {/* Counter badge — top right like Threads */}
+      <div className="absolute right-2 top-2 rounded-full bg-black/50 px-2 py-0.5 text-xs font-medium text-white">
+        {selectedIndex + 1}/{attachments.length}
+      </div>
+ 
+      {/* Dot indicators */}
+      <div className="mt-2 flex justify-center gap-1">
+        {attachments.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => emblaApi?.scrollTo(i)}
+            className={cn(
+              "size-1.5 rounded-full transition-all duration-300",
+              i === selectedIndex ? "w-3 bg-foreground" : "bg-foreground/20",
+            )}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MediaPreview({ media }: MediaPreviewProps) {
   if (media.type === "IMAGE") {
     return (
-      <Image
-        src={media.url}
-        alt="Attachment"
-        width={500}
-        height={500}
-        className="mx-auto size-fit max-h-[30rem] rounded-2xl"
-      />
+      <Link href={`/media/${media.id}`} scroll={false}>
+        <Image
+          src={media.url}
+          alt="Attachment"
+          width={500}
+          height={500}
+          className="h-48 w-full cursor-pointer rounded-2xl object-cover transition-opacity hover:opacity-90 sm:h-64"
+        />
+      </Link>
     );
   }
-
+ 
   if (media.type === "VIDEO") {
     return (
-      <div>
+      <Link href={`/media/${media.id}`} scroll={false}>
         <video
           src={media.url}
-          controls
-          className="mx-auto size-fit max-h-[30rem] rounded-2xl"
+          className="mx-auto size-fit max-h-[30rem] cursor-pointer rounded-2xl"
         />
-      </div>
+      </Link>
     );
   }
 

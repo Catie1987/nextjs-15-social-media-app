@@ -6,8 +6,10 @@ import SessionProvider from "./SessionProvider";
 
 export default async function Layout({
   children,
+  modal,
 }: {
   children: React.ReactNode;
+  modal: React.ReactNode;
 }) {
   const session = await validateRequest();
 
@@ -23,6 +25,7 @@ export default async function Layout({
         </div>
         <MenuBar className="sticky bottom-0 flex w-full justify-center gap-5 border-t bg-card p-3 sm:hidden" />
       </div>
+      {modal}
     </SessionProvider>
   );
 }
