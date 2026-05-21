@@ -240,9 +240,10 @@ function AttachmentPreview({
   // ✅ Clean up object URLs to prevent memory leaks (causes lag on mobile)
   const src = useRef(URL.createObjectURL(file));
 
-  useEffect(() => {
-    return () => URL.revokeObjectURL(src.current);
-  }, []);
+useEffect(() => {
+  const url = src.current; // capture the value
+  return () => URL.revokeObjectURL(url);
+}, []);
 
   return (
     <div
