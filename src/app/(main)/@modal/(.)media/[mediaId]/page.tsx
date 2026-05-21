@@ -17,15 +17,24 @@ export default async function Page({ params: { mediaId } }: PageProps) {
     include: {
       post: {
         include: {
-          attachments: true,
+          attachments: {
+            orderBy: {
+              createdAt: "asc", // ✅ add explicit ordering
+            },
+          },
         },
       },
     },
   });
 
-  if (!media) return notFound();
+  // ✅ Safe fallback
+  const allMedia = Array.isArray(media?.post?.attachments) && media.post.attachments.length > 0
+    ? media.post.attachments
+    : media
+      ? [media]
+      : [];
 
-  const allMedia = media.post?.attachments ?? [media];
+  if (!media || allMedia.length === 0) return notFound();
 
   return <MediaModal media={media} allMedia={allMedia} />;
 

@@ -50,7 +50,7 @@ export default function MediaModal({ media, allMedia }: MediaModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="h-dvh w-screen max-w-screen-xl border-none">
+      <DialogContent className="h-dvh w-screen border-none">
         <DialogHeader>
           <DialogTitle />
         </DialogHeader>

@@ -15,8 +15,8 @@ const nunito = Nunito({
 
 export const metadata: Metadata = {
   title: {
-    template: "%s | HeartFolio",
-    default: "HeartFolio",
+    template: "%s | HeartForlio",
+    default: "HeartForlio",
   },
   description: "The social media app for powernerds",
 };
