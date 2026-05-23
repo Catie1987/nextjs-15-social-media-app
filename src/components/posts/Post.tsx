@@ -1,10 +1,12 @@
 "use client";
 
 import { useSession } from "@/app/(main)/SessionProvider";
+import { ModalPhoto } from "./ModalPhoto";
 import { PostData } from "@/lib/types";
 import { cn, formatRelativeDate } from "@/lib/utils";
 import { Media } from "@prisma/client";
-import { MessageSquare } from "lucide-react";
+import useEmblaCarousel from "embla-carousel-react";
+import { MessageSquare} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -15,7 +17,6 @@ import UserTooltip from "../UserTooltip";
 import BookmarkButton from "./BookmarkButton";
 import LikeButton from "./LikeButton";
 import PostMoreButton from "./PostMoreButton";
-import useEmblaCarousel from "embla-carousel-react";
 
 interface PostProps {
   post: PostData;
@@ -23,7 +24,6 @@ interface PostProps {
 
 export default function Post({ post }: PostProps) {
   const { user } = useSession();
-
   const [showComments, setShowComments] = useState(false);
 
   return (
@@ -100,55 +100,160 @@ interface MediaPreviewsProps {
 }
 
 function MediaPreviews({ attachments }: MediaPreviewsProps) {
-  if (attachments.length === 1) {
-    return <MediaPreview media={attachments[0]} />;
-  }
- 
-  return <MediaCarousel attachments={attachments} />;
-}
- 
-interface MediaCarouselProps {
-  attachments: Media[];
+  const [selectedMedia, setSelectedMedia] = useState<Media | null>(null);
+
+  return (
+    <>
+      {attachments.length === 1 ? (
+        <MediaPreview
+          media={attachments[0]}
+          onClick={() => setSelectedMedia(attachments[0])}
+        />
+      ) : (
+        <MediaCarousel
+          attachments={attachments}
+          onMediaClick={setSelectedMedia}
+        />
+      )}
+
+      <MediaViewerModal
+        media={selectedMedia}
+        allMedia={attachments}
+        onClose={() => setSelectedMedia(null)}
+      />
+    </>
+  );
 }
 
-interface MediaPreviewProps {
-  media: Media;
+interface MediaViewerModalProps {
+  media: Media | null;
+  allMedia: Media[];
+  onClose: () => void;
 }
 
-function MediaCarousel({ attachments }: MediaCarouselProps) {
-  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false, dragFree: true });
-  const [selectedIndex, setSelectedIndex] = useState(0);
- 
+function MediaViewerModal({ media, allMedia, onClose }: MediaViewerModalProps) {
+  const startIndex = allMedia.findIndex((m) => m.id === media?.id);
+
+  const [emblaRef, emblaApi] = useEmblaCarousel({
+    loop: false,
+    startIndex: startIndex >= 0 ? startIndex : 0,
+  });
+
+  const [selectedIndex, setSelectedIndex] = useState(
+    startIndex >= 0 ? startIndex : 0,
+  );
+
   const onSelect = useCallback(() => {
     if (!emblaApi) return;
     setSelectedIndex(emblaApi.selectedScrollSnap());
   }, [emblaApi]);
- 
+
   useEffect(() => {
     if (!emblaApi) return;
     emblaApi.on("select", onSelect);
     onSelect();
   }, [emblaApi, onSelect]);
- 
+
+  useEffect(() => {
+    if (emblaApi && startIndex >= 0) {
+      emblaApi.scrollTo(startIndex, true);
+      setSelectedIndex(startIndex);
+    }
+  }, [media?.id]);
+
+  return (
+    <ModalPhoto open={!!media} onClose={onClose}>
+      <div className="relative flex h-full w-full flex-col">
+    
+        {/* Top gradient */}
+        <div className="absolute top-0 left-0 right-0 h-10 bg-gradient-to-b from-black/70 to-transparent z-[5]" />
+  
+    
+        {/* Carousel */}
+        <div className="overflow-hidden w-full h-full" ref={emblaRef}>
+          <div className="flex touch-pan-y h-full">
+            {allMedia.map((m) => (
+              <div
+                key={m.id}
+                className="relative min-w-0 flex-[0_0_100%] h-dvh"
+              >
+                {m.type === "IMAGE" ? (
+                  <Image
+                    src={m.url}
+                    alt="Media"
+                    fill
+                    className="object-contain"
+                  />
+                ) : (
+                  <video
+                    src={m.url}
+                    controls
+                    autoPlay
+                    className="absolute inset-0 h-full w-full object-contain"
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+    
+        {/* Dots */}
+        {allMedia.length > 1 && (
+          <div className="absolute bottom-6 left-0 right-0 z-10 flex justify-center gap-1.5">
+            {allMedia.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => emblaApi?.scrollTo(i)}
+                className={cn(
+                  "size-1.5 rounded-full transition-all duration-300",
+                  i === selectedIndex ? "w-3 bg-white" : "bg-white/30",
+                )}
+              />
+            ))}
+          </div>
+        )}
+    
+      </div>
+    </ModalPhoto>
+  );
+}
+
+interface MediaCarouselProps {
+  attachments: Media[];
+  onMediaClick: (media: Media) => void;
+}
+
+function MediaCarousel({ attachments, onMediaClick }: MediaCarouselProps) {
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false, dragFree: true });
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const onSelect = useCallback(() => {
+    if (!emblaApi) return;
+    setSelectedIndex(emblaApi.selectedScrollSnap());
+  }, [emblaApi]);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    emblaApi.on("select", onSelect);
+    onSelect();
+  }, [emblaApi, onSelect]);
+
   return (
     <div className="relative">
-      {/* Carousel viewport */}
       <div className="overflow-hidden rounded-2xl" ref={emblaRef}>
         <div className="flex touch-pan-y gap-2">
           {attachments.map((media) => (
             <div key={media.id} className="min-w-0 flex-[0_0_80%]">
-              <MediaPreview media={media} />
+              <MediaPreview media={media} onClick={() => onMediaClick(media)} />
             </div>
           ))}
         </div>
       </div>
- 
-      {/* Counter badge — top right like Threads */}
+
       <div className="absolute right-2 top-2 rounded-full bg-black/50 px-2 py-0.5 text-xs font-medium text-white">
         {selectedIndex + 1}/{attachments.length}
       </div>
- 
-      {/* Dot indicators */}
+
       <div className="mt-2 flex justify-center gap-1">
         {attachments.map((_, i) => (
           <button
@@ -165,10 +270,15 @@ function MediaCarousel({ attachments }: MediaCarouselProps) {
   );
 }
 
-function MediaPreview({ media }: MediaPreviewProps) {
+interface MediaPreviewProps {
+  media: Media;
+  onClick: () => void;
+}
+
+function MediaPreview({ media, onClick }: MediaPreviewProps) {
   if (media.type === "IMAGE") {
     return (
-      <Link href={`/media/${media.id}`} scroll={false}>
+      <button onClick={onClick} className="w-full">
         <Image
           src={media.url}
           alt="Attachment"
@@ -176,18 +286,18 @@ function MediaPreview({ media }: MediaPreviewProps) {
           height={500}
           className="h-48 w-full cursor-pointer rounded-2xl object-cover transition-opacity hover:opacity-90 sm:h-64"
         />
-      </Link>
+      </button>
     );
   }
- 
+
   if (media.type === "VIDEO") {
     return (
-      <Link href={`/media/${media.id}`} scroll={false}>
+      <button onClick={onClick} className="w-full">
         <video
           src={media.url}
           className="mx-auto size-fit max-h-[30rem] cursor-pointer rounded-2xl"
         />
-      </Link>
+      </button>
     );
   }
 
