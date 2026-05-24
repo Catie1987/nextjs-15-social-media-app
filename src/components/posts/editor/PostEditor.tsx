@@ -11,7 +11,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { useDropzone } from "@uploadthing/react";
 import { ImageIcon, Loader2, X, SmilePlus } from "lucide-react";
 import Image from "next/image";
-import { ClipboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ClipboardEvent, useEffect, useMemo, useState } from "react";
 import { useSubmitPostMutation } from "./mutations";
 import "./styles.css";
 import useMediaUpload, { Attachment } from "./useMediaUpload";
@@ -234,8 +234,11 @@ function AttachmentPreview({
   attachment: { file, mediaId, isUploading },
   onRemoveClick,
 }: AttachmentPreviewProps) {
-  const src = URL.createObjectURL(file);
+  const src = useMemo(() => URL.createObjectURL(file), [file]);
 
+useEffect(() => {
+  return () => URL.revokeObjectURL(src);
+}, [src]);
   return (
     <div
       className={cn("relative mx-auto size-fit", isUploading && "opacity-50")}
